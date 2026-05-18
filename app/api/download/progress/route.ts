@@ -1,15 +1,21 @@
 import { NextRequest } from "next/server"
-import pLimit from "p-limit"
 import ExcelJS from "exceljs"
-import {
-  fetchCompanyList,
-  fetchFinancialStatement,
-  QUARTER_REPORT_MAP,
-  type FinancialData,
-} from "@/lib/dart"
+import { readFile } from "fs/promises"
+import path from "path"
+import { QUARTER_REPORT_MAP, type FinancialData } from "@/lib/dart"
 
 export const dynamic = "force-dynamic"
-export const maxDuration = 300
+export const maxDuration = 60
+
+interface DataFile {
+  year: string
+  quarter: string
+  fsDiv: string
+  updatedAt: string
+  total: number
+  failed: number
+  data: FinancialData[]
+}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -21,8 +27,7 @@ export async function GET(req: NextRequest) {
     return new Response("year, quarter, fsDiv 파라미터가 필요합니다", { status: 400 })
   }
 
-  const reprtCode = QUARTER_REPORT_MAP[quarter]
-  if (!reprtCode) {
+  if (!QUARTER_REPORT_MAP[quarter]) {
     return new Response("올바르지 않은 분기입니다", { status: 400 })
   }
 
@@ -39,54 +44,32 @@ export async function GET(req: NextRequest) {
       }
 
       try {
-        send({ type: "status", message: "기업 목록 조회 중..." })
+        send({ type: "status", message: "데이터 로딩 중..." })
 
-        const companies = await fetchCompanyList()
-        const total = companies.length
-
-        send({ type: "progress", done: 0, total, failed: 0, current: "" })
-
-        const limit = pLimit(3)
-        const results: FinancialData[] = []
-        let done = 0
-        let failed = 0
-
-        const delay = (ms: number) => new Promise((r) => setTimeout(r, ms))
-
-        const fetchWithRetry = async (corpCode: string, retries = 2): ReturnType<typeof fetchFinancialStatement> => {
-          for (let i = 0; i <= retries; i++) {
-            const result = await fetchFinancialStatement(corpCode, year, reprtCode, fsDiv)
-            if (result.status !== "조회실패" || i === retries) return result
-            await delay(1000 * (i + 1))
-          }
-          return { revenue: null, operating_profit: null, net_income: null, status: "조회실패" }
-        }
-
-        await Promise.all(
-          companies.map((company) =>
-            limit(async () => {
-              if (req.signal.aborted) return
-
-              await delay(100)
-
-              const fin = await fetchWithRetry(company.corp_code)
-
-              if (fin.status === "조회실패") failed++
-              done++
-
-              results.push({
-                corp_name: company.corp_name,
-                stock_code: company.stock_code,
-                ...fin,
-              })
-
-              if (done % 20 === 0 || done === total) {
-                send({ type: "progress", done, total, failed, current: company.corp_name })
-              }
-            }),
-          ),
+        const filePath = path.join(
+          process.cwd(),
+          "public",
+          "data",
+          `${year}_${quarter}_${fsDiv}.json`,
         )
 
+        let fileData: DataFile
+        try {
+          const raw = await readFile(filePath, "utf-8")
+          fileData = JSON.parse(raw)
+        } catch {
+          send({
+            type: "error",
+            message: `${year}년 ${quarter} ${fsDiv} 데이터가 아직 준비되지 않았습니다. 잠시 후 다시 시도해주세요.`,
+          })
+          return
+        }
+
+        const results = fileData.data
+        const total = fileData.total
+        const failed = fileData.failed
+
+        send({ type: "progress", done: total, total, failed, current: "" })
         send({ type: "status", message: "엑셀 생성 중..." })
 
         const quarterLabel =
