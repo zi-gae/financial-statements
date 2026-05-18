@@ -4,7 +4,8 @@ import { join, dirname } from "path"
 import { fileURLToPath } from "url"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const ROOT = join(__dirname, "..")
+// git root의 scripts/ 폴더에서 실행되므로, Next.js public은 ../app/public
+const ROOT = join(__dirname, "..", "app")
 
 const DART_API_KEY = process.env.DART_API_KEY
 const DART_BASE_URL = "https://opendart.fss.or.kr/api"
