@@ -30,7 +30,7 @@ export interface FinancialData {
 
 export async function fetchCompanyList(): Promise<Company[]> {
   const url = `${DART_BASE_URL}/corpCode.xml?crtfc_key=${DART_API_KEY}`
-  const res = await fetch(url)
+  const res = await fetch(url, { signal: AbortSignal.timeout(30000) })
   if (!res.ok) throw new Error(`기업 목록 조회 실패: ${res.status}`)
 
   const arrayBuffer = await res.arrayBuffer()
