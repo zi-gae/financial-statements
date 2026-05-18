@@ -1,4 +1,3 @@
 {
-  "installCommand": "npm ci",
-  "nodeVersion": "22"
+  "installCommand": "npm ci"
 }
