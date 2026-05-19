@@ -7,8 +7,17 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 // git root의 scripts/ 폴더에서 실행되므로, Next.js public은 ../app/public
 const ROOT = join(__dirname, "..", "app")
 
-const DART_API_KEY = process.env.DART_API_KEY
 const DART_BASE_URL = "https://opendart.fss.or.kr/api"
+
+const API_KEYS = [
+  process.env.DART_API_KEY1,
+  process.env.DART_API_KEY2,
+].filter(Boolean)
+
+if (API_KEYS.length === 0) throw new Error("DART_API_KEY1 환경변수가 필요합니다")
+
+let keyIndex = 0
+const getKey = () => API_KEYS[keyIndex++ % API_KEYS.length]
 
 const QUARTER_REPORT_MAP = {
   Q1: "11013",
@@ -40,7 +49,7 @@ function getRecentQuarters() {
 }
 
 async function fetchCompanyList(retries = 3) {
-  const url = `${DART_BASE_URL}/corpCode.xml?crtfc_key=${DART_API_KEY}`
+  const url = `${DART_BASE_URL}/corpCode.xml?crtfc_key=${getKey()}`
   const delay = (ms) => new Promise((r) => setTimeout(r, ms))
 
   for (let attempt = 1; attempt <= retries; attempt++) {
@@ -90,7 +99,7 @@ async function fetchCompanyList(retries = 3) {
 
 async function fetchFinancialStatement(corpCode, year, reprtCode, fsDiv) {
   const params = new URLSearchParams({
-    crtfc_key: DART_API_KEY,
+    crtfc_key: getKey(),
     corp_code: corpCode,
     bsns_year: String(year),
     reprt_code: reprtCode,
@@ -193,7 +202,7 @@ async function fetchAndSave(year, quarter, fsDiv) {
 }
 
 async function main() {
-  if (!DART_API_KEY) throw new Error("DART_API_KEY 환경변수가 필요합니다")
+  console.log(`API 키 ${API_KEYS.length}개 로드됨`)
 
   const targetYear = process.env.TARGET_YEAR
   const targetQuarter = process.env.TARGET_QUARTER
