@@ -5,6 +5,9 @@ on:
     - cron: "0 17 * * *" # 매일 KST 오전 2시 (UTC 17:00)
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   generate-matrix:
     runs-on: ubuntu-latest
