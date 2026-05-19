@@ -39,37 +39,53 @@ function getRecentQuarters() {
   return quarters.reverse()
 }
 
-async function fetchCompanyList() {
+async function fetchCompanyList(retries = 3) {
   const url = `${DART_BASE_URL}/corpCode.xml?crtfc_key=${DART_API_KEY}`
-  const res = await fetch(url)
-  if (!res.ok) throw new Error(`기업 목록 조회 실패: ${res.status}`)
+  const delay = (ms) => new Promise((r) => setTimeout(r, ms))
 
-  const arrayBuffer = await res.arrayBuffer()
-  const buffer = Buffer.from(arrayBuffer)
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(30000) })
+      if (!res.ok) throw new Error(`기업 목록 조회 실패: ${res.status}`)
 
-  const AdmZip = (await import("adm-zip")).default
-  const zip = new AdmZip(buffer)
-  const xmlEntry = zip.getEntries().find((e) => e.entryName.endsWith(".xml"))
-  if (!xmlEntry) throw new Error("XML 파일을 찾을 수 없습니다")
+      const arrayBuffer = await res.arrayBuffer()
+      const buffer = Buffer.from(arrayBuffer)
 
-  const xml = xmlEntry.getData().toString("utf-8")
-  const companies = []
-  const regex =
-    /<list>[\s\S]*?<corp_code>(.*?)<\/corp_code>[\s\S]*?<corp_name>(.*?)<\/corp_name>[\s\S]*?<stock_code>(.*?)<\/stock_code>[\s\S]*?<\/list>/g
+      // ZIP 파일 시그니처 확인 (PK\x03\x04)
+      if (buffer[0] !== 0x50 || buffer[1] !== 0x4b) {
+        const preview = buffer.slice(0, 200).toString("utf-8").replace(/\n/g, " ")
+        throw new Error(`ZIP 형식이 아닌 응답 수신 (hex: ${buffer.slice(0, 4).toString("hex")}, 내용: ${preview})`)
+      }
 
-  let match
-  while ((match = regex.exec(xml)) !== null) {
-    const stock_code = match[3].trim()
-    if (stock_code) {
-      companies.push({
-        corp_code: match[1].trim(),
-        corp_name: match[2].trim(),
-        stock_code,
-      })
+      const AdmZip = (await import("adm-zip")).default
+      const zip = new AdmZip(buffer)
+      const xmlEntry = zip.getEntries().find((e) => e.entryName.endsWith(".xml"))
+      if (!xmlEntry) throw new Error("XML 파일을 찾을 수 없습니다")
+
+      const xml = xmlEntry.getData().toString("utf-8")
+      const companies = []
+      const regex =
+        /<list>[\s\S]*?<corp_code>(.*?)<\/corp_code>[\s\S]*?<corp_name>(.*?)<\/corp_name>[\s\S]*?<stock_code>(.*?)<\/stock_code>[\s\S]*?<\/list>/g
+
+      let match
+      while ((match = regex.exec(xml)) !== null) {
+        const stock_code = match[3].trim()
+        if (stock_code) {
+          companies.push({
+            corp_code: match[1].trim(),
+            corp_name: match[2].trim(),
+            stock_code,
+          })
+        }
+      }
+
+      return companies
+    } catch (e) {
+      console.error(`[기업목록] 시도 ${attempt}/${retries} 실패: ${e.message}`)
+      if (attempt === retries) throw e
+      await delay(5000 * attempt)
     }
   }
-
-  return companies
 }
 
 async function fetchFinancialStatement(corpCode, year, reprtCode, fsDiv) {
