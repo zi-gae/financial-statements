@@ -179,15 +179,22 @@ async function fetchAndSave(year, quarter, fsDiv) {
 async function main() {
   if (!DART_API_KEY) throw new Error("DART_API_KEY 환경변수가 필요합니다")
 
-  const quarters = getRecentQuarters()
-  console.log(
-    "처리할 분기:",
-    quarters.map((q) => `${q.year}_${q.quarter}`).join(", "),
-  )
+  const targetYear = process.env.TARGET_YEAR
+  const targetQuarter = process.env.TARGET_QUARTER
+  const targetFsDiv = process.env.TARGET_FS_DIV
 
-  for (const { year, quarter } of quarters) {
-    for (const fsDiv of ["CFS", "OFS"]) {
-      await fetchAndSave(year, quarter, fsDiv)
+  if (targetYear && targetQuarter && targetFsDiv) {
+    await fetchAndSave(Number(targetYear), targetQuarter, targetFsDiv)
+  } else {
+    const quarters = getRecentQuarters()
+    console.log(
+      "처리할 분기:",
+      quarters.map((q) => `${q.year}_${q.quarter}`).join(", "),
+    )
+    for (const { year, quarter } of quarters) {
+      for (const fsDiv of ["CFS", "OFS"]) {
+        await fetchAndSave(year, quarter, fsDiv)
+      }
     }
   }
 

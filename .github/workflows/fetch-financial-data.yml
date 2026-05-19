@@ -3,11 +3,48 @@ name: Fetch Financial Data
 on:
   schedule:
     - cron: "0 17 * * *" # 매일 KST 오전 2시 (UTC 17:00)
-  workflow_dispatch: # 수동 실행
+  workflow_dispatch:
 
 jobs:
-  fetch:
+  generate-matrix:
     runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.calc.outputs.matrix }}
+    steps:
+      - name: Calculate recent quarters
+        id: calc
+        run: |
+          node -e "
+          const now = new Date();
+          const year = now.getFullYear();
+          const month = now.getMonth() + 1;
+          const currentQuarter = Math.ceil(month / 3);
+
+          const quarters = [];
+          let q = currentQuarter - 1;
+          let y = year;
+          for (let i = 0; i < 4; i++) {
+            if (q <= 0) { q = 4; y--; }
+            quarters.push({ year: String(y), quarter: 'Q' + q });
+            q--;
+          }
+
+          const include = [];
+          for (const { year, quarter } of quarters) {
+            for (const fsDiv of ['CFS', 'OFS']) {
+              include.push({ year, quarter, fsDiv });
+            }
+          }
+
+          require('fs').appendFileSync(process.env.GITHUB_OUTPUT, 'matrix=' + JSON.stringify({ include }) + '\n');
+          "
+
+  fetch:
+    needs: generate-matrix
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
+      fail-fast: false
 
     steps:
       - uses: actions/checkout@v4
@@ -26,7 +63,28 @@ jobs:
       - name: Fetch financial data
         env:
           DART_API_KEY: ${{ secrets.DART_API_KEY }}
+          TARGET_YEAR: ${{ matrix.year }}
+          TARGET_QUARTER: ${{ matrix.quarter }}
+          TARGET_FS_DIV: ${{ matrix.fsDiv }}
         run: node scripts/fetch-financial-data.mjs
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: data-${{ matrix.year }}-${{ matrix.quarter }}-${{ matrix.fsDiv }}
+          path: app/public/data/${{ matrix.year }}_${{ matrix.quarter }}_${{ matrix.fsDiv }}.json
+
+  commit:
+    needs: fetch
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: app/public/data/
+          merge-multiple: true
 
       - name: Commit and push
         run: |
