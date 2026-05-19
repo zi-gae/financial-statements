@@ -54,7 +54,7 @@ async function fetchCompanyList(retries = 3) {
 
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(60000) })
+      const res = await fetch(url)
       if (!res.ok) throw new Error(`기업 목록 조회 실패: ${res.status}`)
 
       const arrayBuffer = await res.arrayBuffer()
