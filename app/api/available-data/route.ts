@@ -13,13 +13,18 @@ export async function GET() {
     return Response.json([])
   }
 
-  const entries = files
-    .filter((f) => f.endsWith(".json"))
-    .map((f) => {
-      const [year, quarter, fsDiv] = f.replace(".json", "").split("_")
+  const fileSet = new Set(files.filter((f) => f.endsWith(".json")).map((f) => f.replace(".json", "")))
+
+  const entries = [...fileSet]
+    .map((name) => {
+      const [year, quarter, fsDiv] = name.split("_")
       return { year, quarter, fsDiv }
     })
     .filter((e) => e.year && e.quarter && e.fsDiv)
+    .filter((e) => {
+      const prevYear = String(parseInt(e.year) - 1)
+      return fileSet.has(`${prevYear}_${e.quarter}_${e.fsDiv}`)
+    })
     .sort((a, b) => {
       if (a.year !== b.year) return b.year.localeCompare(a.year)
       return b.quarter.localeCompare(a.quarter)

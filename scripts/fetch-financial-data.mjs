@@ -1,4 +1,4 @@
-import { mkdirSync } from "fs"
+import { mkdirSync, existsSync } from "fs"
 import { writeFile } from "fs/promises"
 import { join, dirname } from "path"
 import { fileURLToPath } from "url"
@@ -25,7 +25,7 @@ const QUARTER_REPORT_MAP = {
   Q4: "11011",
 }
 
-function getRecentQuarters() {
+function getTargetQuarters() {
   const now = new Date()
   const year = now.getFullYear()
   const month = now.getMonth() + 1
@@ -35,16 +35,27 @@ function getRecentQuarters() {
   let q = currentQuarter - 1
   let y = year
 
+  // 최근 4분기
   for (let i = 0; i < 4; i++) {
-    if (q <= 0) {
-      q = 4
-      y--
-    }
+    if (q <= 0) { q = 4; y-- }
     quarters.push({ year: y, quarter: `Q${q}` })
     q--
   }
 
-  return quarters.reverse()
+  // 전년 동기 4분기 추가
+  const withPrev = quarters.flatMap(({ year, quarter }) => [
+    { year, quarter },
+    { year: year - 1, quarter },
+  ])
+
+  // 중복 제거
+  const seen = new Set()
+  return withPrev.filter(({ year, quarter }) => {
+    const key = `${year}_${quarter}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 }
 
 async function fetchCompanyList(retries = 3) {
@@ -200,6 +211,18 @@ async function fetchAndSave(year, quarter, fsDiv) {
   console.log(`[${label}] 완료 - ${done}개 처리, ${failed}개 실패`)
 }
 
+async function fetchAndSaveIfNeeded(year, quarter, fsDiv) {
+  const label = `${year}_${quarter}_${fsDiv}`
+  const filePath = join(ROOT, "public", "data", `${label}.json`)
+
+  if (existsSync(filePath)) {
+    console.log(`[${label}] 파일 존재 → 스킵`)
+    return
+  }
+
+  await fetchAndSave(year, quarter, fsDiv)
+}
+
 async function main() {
   console.log(`API 키 ${API_KEYS.length}개 로드됨`)
 
@@ -210,14 +233,14 @@ async function main() {
   if (targetYear && targetQuarter && targetFsDiv) {
     await fetchAndSave(Number(targetYear), targetQuarter, targetFsDiv)
   } else {
-    const quarters = getRecentQuarters()
+    const quarters = getTargetQuarters()
     console.log(
       "처리할 분기:",
       quarters.map((q) => `${q.year}_${q.quarter}`).join(", "),
     )
     for (const { year, quarter } of quarters) {
       for (const fsDiv of ["CFS", "OFS"]) {
-        await fetchAndSave(year, quarter, fsDiv)
+        await fetchAndSaveIfNeeded(year, quarter, fsDiv)
       }
     }
   }
