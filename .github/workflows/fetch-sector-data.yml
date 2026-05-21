@@ -1,0 +1,39 @@
+name: Fetch Sector Data
+
+on:
+  schedule:
+    - cron: "0 23 * * *" # 매일 KST 오전 8시 (UTC 23:00)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Fetch sector data
+        run: node scripts/fetch-sector-data.mjs
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add public/data/sector.json
+          git diff --staged --quiet || git commit -m "chore: 업종 데이터 업데이트 $(date +%Y-%m-%d)"
+          git pull --rebase origin main
+          git push
