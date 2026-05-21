@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "0 17 * * *" # 매일 KST 오전 2시 (UTC 17:00)
   workflow_dispatch:
+    inputs:
+      year:
+        description: "수집할 연도 (예: 2024). 비워두면 최근 4분기 + 전년 동기 자동 수집"
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -23,25 +28,31 @@ jobs:
           const month = now.getMonth() + 1;
           const currentQuarter = Math.ceil(month / 3);
 
-          const recent = [];
-          let q = currentQuarter - 1;
-          let y = year;
-          for (let i = 0; i < 4; i++) {
-            if (q <= 0) { q = 4; y--; }
-            recent.push({ year: String(y), quarter: 'Q' + q });
-            q--;
-          }
+          const inputYear = '${{ inputs.year }}';
+          let quarters;
 
-          const seen = new Set();
-          const quarters = recent.flatMap(({ year, quarter }) => [
-            { year, quarter },
-            { year: String(Number(year) - 1), quarter },
-          ]).filter(({ year, quarter }) => {
-            const key = year + '_' + quarter;
-            if (seen.has(key)) return false;
-            seen.add(key);
-            return true;
-          });
+          if (inputYear) {
+            quarters = ['Q1','Q2','Q3','Q4'].map(quarter => ({ year: inputYear, quarter }));
+          } else {
+            const recent = [];
+            let q = currentQuarter - 1;
+            let y = year;
+            for (let i = 0; i < 4; i++) {
+              if (q <= 0) { q = 4; y--; }
+              recent.push({ year: String(y), quarter: 'Q' + q });
+              q--;
+            }
+            const seen = new Set();
+            quarters = recent.flatMap(({ year, quarter }) => [
+              { year, quarter },
+              { year: String(Number(year) - 1), quarter },
+            ]).filter(({ year, quarter }) => {
+              const key = year + '_' + quarter;
+              if (seen.has(key)) return false;
+              seen.add(key);
+              return true;
+            });
+          }
 
           const include = [];
           for (const { year, quarter } of quarters) {
