@@ -98,7 +98,11 @@ export async function GET(req: NextRequest) {
           fgColor: { argb: "FFE9ECEF" },
         }
 
-        for (const row of results) {
+        const filteredResults = results.filter(
+          (r) => r.revenue !== null || r.operating_profit !== null,
+        )
+
+        for (const row of filteredResults) {
           sheet.addRow({
             corp_name: row.corp_name,
             stock_code: row.stock_code,
@@ -113,7 +117,7 @@ export async function GET(req: NextRequest) {
           })
         }
 
-        for (let i = 2; i <= results.length + 1; i++) {
+        for (let i = 2; i <= filteredResults.length + 1; i++) {
           const r = sheet.getRow(i)
           ;["revenue", "operating_profit", "net_income"].forEach((key) => {
             const cell = r.getCell(key)
