@@ -121,7 +121,7 @@ export default function DownloadPanel() {
       <div className="flex gap-3 flex-wrap">
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium text-gray-600">연도</label>
-          <Select value={year} onValueChange={(v) => { setYear(v); setQuarter(available.find((e) => e.year === v)?.quarter ?? "") }} disabled={status === "running"}>
+          <Select value={year} onValueChange={(v) => { if (!v) return; setYear(v); const entry = available.find((e) => e.year === v); if (entry) setQuarter(entry.quarter) }} disabled={status === "running"}>
             <SelectTrigger className="w-28">
               <SelectValue>{year ? `${year}년` : "선택"}</SelectValue>
             </SelectTrigger>
