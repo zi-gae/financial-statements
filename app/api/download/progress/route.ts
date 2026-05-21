@@ -9,6 +9,16 @@ interface SectorData {
   data: Record<string, { code: string; name: string }>
 }
 
+interface DataFile {
+  year: string
+  quarter: string
+  fsDiv: string
+  updatedAt: string
+  total: number
+  failed: number
+  data: FinancialData[]
+}
+
 async function loadSectorMap(): Promise<Record<string, string>> {
   try {
     const raw = await readFile(path.join(process.cwd(), "public", "data", "sector.json"), "utf-8")
@@ -21,18 +31,22 @@ async function loadSectorMap(): Promise<Record<string, string>> {
   }
 }
 
+function getPrevQuarter(year: string, quarter: string): { year: string; quarter: string } {
+  const q = parseInt(quarter.replace("Q", ""))
+  if (q === 1) return { year: String(parseInt(year) - 1), quarter: "Q4" }
+  return { year, quarter: `Q${q - 1}` }
+}
+
+function calcGrowthRate(current: string | null, prev: string | null): number | null {
+  if (!current || !prev) return null
+  const c = Number(current)
+  const p = Number(prev)
+  if (p === 0) return null
+  return ((c - p) / Math.abs(p)) * 100
+}
+
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
-
-interface DataFile {
-  year: string
-  quarter: string
-  fsDiv: string
-  updatedAt: string
-  total: number
-  failed: number
-  data: FinancialData[]
-}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -63,16 +77,11 @@ export async function GET(req: NextRequest) {
       try {
         send({ type: "status", message: "데이터 로딩 중..." })
 
-        const filePath = path.join(
-          process.cwd(),
-          "public",
-          "data",
-          `${year}_${quarter}_${fsDiv}.json`,
-        )
+        const dataDir = path.join(process.cwd(), "public", "data")
 
         let fileData: DataFile
         try {
-          const raw = await readFile(filePath, "utf-8")
+          const raw = await readFile(path.join(dataDir, `${year}_${quarter}_${fsDiv}.json`), "utf-8")
           fileData = JSON.parse(raw)
         } catch {
           send({
@@ -80,6 +89,22 @@ export async function GET(req: NextRequest) {
             message: `${year}년 ${quarter} ${fsDiv} 데이터가 아직 준비되지 않았습니다. 잠시 후 다시 시도해주세요.`,
           })
           return
+        }
+
+        // 직전 분기 데이터 로드 (없으면 빈 맵)
+        const prev = getPrevQuarter(year, quarter)
+        const prevMap = new Map<string, FinancialData>()
+        try {
+          const prevRaw = await readFile(
+            path.join(dataDir, `${prev.year}_${prev.quarter}_${fsDiv}.json`),
+            "utf-8",
+          )
+          const prevData: DataFile = JSON.parse(prevRaw)
+          for (const row of prevData.data) {
+            prevMap.set(row.stock_code, row)
+          }
+        } catch {
+          // 직전 분기 파일 없으면 전분기비 빈칸
         }
 
         const results = fileData.data
@@ -100,15 +125,13 @@ export async function GET(req: NextRequest) {
 
         sheet.columns = [
           { header: "기업명", key: "corp_name", width: 20 },
-          { header: "종목코드", key: "stock_code", width: 12 },
-          { header: "업종", key: "sector", width: 22 },
-          { header: "연도", key: "year", width: 8 },
-          { header: "분기", key: "quarter", width: 8 },
-          { header: "재무구분", key: "fs_div", width: 10 },
           { header: "매출액", key: "revenue", width: 18 },
+          { header: "매출액 전분기비(%)", key: "revenue_growth", width: 18 },
           { header: "영업이익", key: "operating_profit", width: 18 },
-          { header: "당기순이익", key: "net_income", width: 18 },
-          { header: "데이터상태", key: "status", width: 12 },
+          { header: "영업이익 전분기비(%)", key: "operating_profit_growth", width: 20 },
+          { header: "순이익", key: "net_income", width: 18 },
+          { header: "순이익 전분기비(%)", key: "net_income_growth", width: 18 },
+          { header: "업종", key: "sector", width: 22 },
         ]
 
         sheet.getRow(1).font = { bold: true }
@@ -123,18 +146,20 @@ export async function GET(req: NextRequest) {
         )
 
         for (const row of filteredResults) {
+          const prevRow = prevMap.get(row.stock_code)
+          const revenueGrowth = calcGrowthRate(row.revenue, prevRow?.revenue ?? null)
+          const opGrowth = calcGrowthRate(row.operating_profit, prevRow?.operating_profit ?? null)
+          const niGrowth = calcGrowthRate(row.net_income, prevRow?.net_income ?? null)
+
           sheet.addRow({
             corp_name: row.corp_name,
-            stock_code: row.stock_code,
-            sector: sectorMap[row.stock_code] ?? "",
-            year,
-            quarter: quarterLabel,
-            fs_div: fsDivLabel,
             revenue: row.revenue != null ? Number(row.revenue) : "",
-            operating_profit:
-              row.operating_profit != null ? Number(row.operating_profit) : "",
+            revenue_growth: revenueGrowth != null ? Math.round(revenueGrowth * 10) / 10 : "",
+            operating_profit: row.operating_profit != null ? Number(row.operating_profit) : "",
+            operating_profit_growth: opGrowth != null ? Math.round(opGrowth * 10) / 10 : "",
             net_income: row.net_income != null ? Number(row.net_income) : "",
-            status: row.status,
+            net_income_growth: niGrowth != null ? Math.round(niGrowth * 10) / 10 : "",
+            sector: sectorMap[row.stock_code] ?? "",
           })
         }
 
@@ -142,9 +167,11 @@ export async function GET(req: NextRequest) {
           const r = sheet.getRow(i)
           ;["revenue", "operating_profit", "net_income"].forEach((key) => {
             const cell = r.getCell(key)
-            if (typeof cell.value === "number") {
-              cell.numFmt = "#,##0"
-            }
+            if (typeof cell.value === "number") cell.numFmt = "#,##0"
+          })
+          ;["revenue_growth", "operating_profit_growth", "net_income_growth"].forEach((key) => {
+            const cell = r.getCell(key)
+            if (typeof cell.value === "number") cell.numFmt = '0.0"%"'
           })
         }
 
