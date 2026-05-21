@@ -79,8 +79,33 @@ jobs:
           name: data-${{ matrix.year }}-${{ matrix.quarter }}-${{ matrix.fsDiv }}
           path: public/data/${{ matrix.year }}_${{ matrix.quarter }}_${{ matrix.fsDiv }}.json
 
+  fetch-sector:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Fetch sector data
+        run: node scripts/fetch-sector-data.mjs
+
+      - name: Upload sector artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sector-data
+          path: public/data/sector.json
+
   commit:
-    needs: fetch
+    needs: [fetch, fetch-sector]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -4,6 +4,23 @@ import { readFile } from "fs/promises"
 import path from "path"
 import { QUARTER_REPORT_MAP, type FinancialData } from "@/lib/dart"
 
+interface SectorData {
+  updatedAt: string
+  data: Record<string, { code: string; name: string }>
+}
+
+async function loadSectorMap(): Promise<Record<string, string>> {
+  try {
+    const raw = await readFile(path.join(process.cwd(), "public", "data", "sector.json"), "utf-8")
+    const sectorData: SectorData = JSON.parse(raw)
+    return Object.fromEntries(
+      Object.entries(sectorData.data).map(([stockCode, s]) => [stockCode, s.name]),
+    )
+  } catch {
+    return {}
+  }
+}
+
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
@@ -72,6 +89,8 @@ export async function GET(req: NextRequest) {
         send({ type: "progress", done: total, total, failed, current: "" })
         send({ type: "status", message: "엑셀 생성 중..." })
 
+        const sectorMap = await loadSectorMap()
+
         const quarterLabel =
           { Q1: "1분기", Q2: "2분기", Q3: "3분기", Q4: "4분기" }[quarter] ?? quarter
         const fsDivLabel = fsDiv === "CFS" ? "연결" : "별도"
@@ -82,6 +101,7 @@ export async function GET(req: NextRequest) {
         sheet.columns = [
           { header: "기업명", key: "corp_name", width: 20 },
           { header: "종목코드", key: "stock_code", width: 12 },
+          { header: "업종", key: "sector", width: 22 },
           { header: "연도", key: "year", width: 8 },
           { header: "분기", key: "quarter", width: 8 },
           { header: "재무구분", key: "fs_div", width: 10 },
@@ -106,6 +126,7 @@ export async function GET(req: NextRequest) {
           sheet.addRow({
             corp_name: row.corp_name,
             stock_code: row.stock_code,
+            sector: sectorMap[row.stock_code] ?? "",
             year,
             quarter: quarterLabel,
             fs_div: fsDivLabel,

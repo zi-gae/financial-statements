@@ -23,6 +23,9 @@ importers:
       exceljs:
         specifier: ^4.4.0
         version: 4.4.0
+      iconv-lite:
+        specifier: ^0.7.2
+        version: 0.7.2
       lucide-react:
         specifier: ^1.16.0
         version: 1.16.0(react@19.2.4)
