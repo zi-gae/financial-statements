@@ -31,10 +31,8 @@ async function loadSectorMap(): Promise<Record<string, string>> {
   }
 }
 
-function getPrevQuarter(year: string, quarter: string): { year: string; quarter: string } {
-  const q = parseInt(quarter.replace("Q", ""))
-  if (q === 1) return { year: String(parseInt(year) - 1), quarter: "Q4" }
-  return { year, quarter: `Q${q - 1}` }
+function getPrevYearSameQuarter(year: string, quarter: string): { year: string; quarter: string } {
+  return { year: String(parseInt(year) - 1), quarter }
 }
 
 function calcGrowthRate(current: string | null, prev: string | null): number | null {
@@ -92,7 +90,7 @@ export async function GET(req: NextRequest) {
         }
 
         // 직전 분기 데이터 로드 (없으면 빈 맵)
-        const prev = getPrevQuarter(year, quarter)
+        const prev = getPrevYearSameQuarter(year, quarter)
         const prevMap = new Map<string, FinancialData>()
         try {
           const prevRaw = await readFile(
@@ -104,7 +102,7 @@ export async function GET(req: NextRequest) {
             prevMap.set(row.stock_code, row)
           }
         } catch {
-          // 직전 분기 파일 없으면 전분기비 빈칸
+          // 직전 분기 파일 없으면 전년비 빈칸
         }
 
         const results = fileData.data
@@ -126,11 +124,11 @@ export async function GET(req: NextRequest) {
         sheet.columns = [
           { header: "기업명", key: "corp_name", width: 20 },
           { header: "매출액", key: "revenue", width: 18 },
-          { header: "매출액 전분기비(%)", key: "revenue_growth", width: 18 },
+          { header: "매출액 전년비(%)", key: "revenue_growth", width: 18 },
           { header: "영업이익", key: "operating_profit", width: 18 },
-          { header: "영업이익 전분기비(%)", key: "operating_profit_growth", width: 20 },
+          { header: "영업이익 전년비(%)", key: "operating_profit_growth", width: 20 },
           { header: "순이익", key: "net_income", width: 18 },
-          { header: "순이익 전분기비(%)", key: "net_income_growth", width: 18 },
+          { header: "순이익 전년비(%)", key: "net_income_growth", width: 18 },
           { header: "업종", key: "sector", width: 22 },
         ]
 
