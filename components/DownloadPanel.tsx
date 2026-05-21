@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
@@ -13,22 +13,38 @@ import {
 } from "@/components/ui/select"
 import { useDownloadStore } from "@/store/download"
 
-const YEARS = ["2025", "2024", "2023"]
-const QUARTERS = [
-  { label: "1분기", value: "Q1" },
-  { label: "2분기", value: "Q2" },
-  { label: "3분기", value: "Q3" },
-  { label: "4분기", value: "Q4" },
-]
+const QUARTER_LABELS: Record<string, string> = {
+  Q1: "1분기", Q2: "2분기", Q3: "3분기", Q4: "4분기",
+}
 const FS_DIVS = [
   { label: "연결재무제표", value: "CFS" },
   { label: "별도재무제표", value: "OFS" },
 ]
 
+interface AvailableEntry { year: string; quarter: string; fsDiv: string }
+
 export default function DownloadPanel() {
-  const [year, setYear] = useState("2024")
-  const [quarter, setQuarter] = useState("Q4")
+  const [available, setAvailable] = useState<AvailableEntry[]>([])
+  const [year, setYear] = useState("")
+  const [quarter, setQuarter] = useState("")
   const [fsDiv, setFsDiv] = useState("CFS")
+
+  useEffect(() => {
+    fetch("/api/available-data")
+      .then((r) => r.json())
+      .then((data: AvailableEntry[]) => {
+        setAvailable(data)
+        if (data.length > 0) {
+          const first = data[0]
+          setYear(first.year)
+          setQuarter(first.quarter)
+          setFsDiv(first.fsDiv)
+        }
+      })
+  }, [])
+
+  const years = [...new Set(available.map((e) => e.year))]
+  const quarters = [...new Set(available.filter((e) => e.year === year).map((e) => e.quarter))]
 
   const { status, total, done, failed, currentCompany, errorMessage, setProgress, setStatus, setError, reset } =
     useDownloadStore()
@@ -88,7 +104,7 @@ export default function DownloadPanel() {
     setStatus("cancelled")
   }
 
-  const quarterLabel = QUARTERS.find((q) => q.value === quarter)?.label ?? quarter
+  const quarterLabel = QUARTER_LABELS[quarter] ?? quarter
   const fsDivLabel = FS_DIVS.find((f) => f.value === fsDiv)?.label ?? fsDiv
 
   return (
@@ -105,12 +121,12 @@ export default function DownloadPanel() {
       <div className="flex gap-3 flex-wrap">
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium text-gray-600">연도</label>
-          <Select value={year} onValueChange={(v) => v && setYear(v)} disabled={status === "running"}>
+          <Select value={year} onValueChange={(v) => { setYear(v); setQuarter(available.find((e) => e.year === v)?.quarter ?? "") }} disabled={status === "running"}>
             <SelectTrigger className="w-28">
-              <SelectValue>{`${year}년`}</SelectValue>
+              <SelectValue>{year ? `${year}년` : "선택"}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {YEARS.map((y) => (
+              {years.map((y) => (
                 <SelectItem key={y} value={y}>{y}년</SelectItem>
               ))}
             </SelectContent>
@@ -121,11 +137,11 @@ export default function DownloadPanel() {
           <label className="text-xs font-medium text-gray-600">분기</label>
           <Select value={quarter} onValueChange={(v) => v && setQuarter(v)} disabled={status === "running"}>
             <SelectTrigger className="w-28">
-              <SelectValue>{QUARTERS.find((q) => q.value === quarter)?.label ?? quarter}</SelectValue>
+              <SelectValue>{QUARTER_LABELS[quarter] ?? "선택"}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {QUARTERS.map((q) => (
-                <SelectItem key={q.value} value={q.value}>{q.label}</SelectItem>
+              {quarters.map((q) => (
+                <SelectItem key={q} value={q}>{QUARTER_LABELS[q]}</SelectItem>
               ))}
             </SelectContent>
           </Select>
