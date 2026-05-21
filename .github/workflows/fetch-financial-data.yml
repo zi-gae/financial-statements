@@ -23,14 +23,25 @@ jobs:
           const month = now.getMonth() + 1;
           const currentQuarter = Math.ceil(month / 3);
 
-          const quarters = [];
+          const recent = [];
           let q = currentQuarter - 1;
           let y = year;
           for (let i = 0; i < 4; i++) {
             if (q <= 0) { q = 4; y--; }
-            quarters.push({ year: String(y), quarter: 'Q' + q });
+            recent.push({ year: String(y), quarter: 'Q' + q });
             q--;
           }
+
+          const seen = new Set();
+          const quarters = recent.flatMap(({ year, quarter }) => [
+            { year, quarter },
+            { year: String(Number(year) - 1), quarter },
+          ]).filter(({ year, quarter }) => {
+            const key = year + '_' + quarter;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
 
           const include = [];
           for (const { year, quarter } of quarters) {
