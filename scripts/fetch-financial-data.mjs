@@ -11,6 +11,7 @@ const DART_BASE_URL = "https://opendart.fss.or.kr/api"
 const API_KEYS = [
   process.env.DART_API_KEY1,
   process.env.DART_API_KEY2,
+  process.env.DART_API_KEY3,
 ].filter(Boolean)
 
 if (API_KEYS.length === 0) throw new Error("DART_API_KEY1 환경변수가 필요합니다")

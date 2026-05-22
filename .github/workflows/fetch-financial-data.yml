@@ -88,6 +88,7 @@ jobs:
         env:
           DART_API_KEY1: ${{ secrets.DART_API_KEY1 }}
           DART_API_KEY2: ${{ secrets.DART_API_KEY2 }}
+          DART_API_KEY3: ${{ secrets.DART_API_KEY3 }}
           TARGET_YEAR: ${{ matrix.year }}
           TARGET_QUARTER: ${{ matrix.quarter }}
           TARGET_FS_DIV: ${{ matrix.fsDiv }}
