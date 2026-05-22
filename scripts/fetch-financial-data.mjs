@@ -59,11 +59,11 @@ function getTargetQuarters() {
 }
 
 async function fetchCompanyList(retries = 3) {
-  const url = `${DART_BASE_URL}/corpCode.xml?crtfc_key=${getKey()}`
   const delay = (ms) => new Promise((r) => setTimeout(r, ms))
 
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
+      const url = `${DART_BASE_URL}/corpCode.xml?crtfc_key=${getKey()}`
       const res = await fetch(url)
       if (!res.ok) throw new Error(`기업 목록 조회 실패: ${res.status}`)
 
